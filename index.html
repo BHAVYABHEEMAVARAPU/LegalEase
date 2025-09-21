@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LegalEase AI - Advanced Legal Analysis</title>
+    
+    <!-- 1. Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 2. React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- 3. Babel to compile JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+      /* Simple dark mode setup for Tailwind CDN */
+      .dark { color-scheme: dark; }
+      /* Custom prose styles for better list readability */
+      .prose ul { list-style-type: disc; margin-left: 1.25rem; }
+      .prose ol { list-style-type: decimal; margin-left: 1.25rem; }
+      .prose blockquote { border-left-color: #4f46e5; }
+      .dark .prose { --tw-prose-body: #d1d5db; --tw-prose-headings: #fff; --tw-prose-bold: #fff; }
+      .dark .prose blockquote { border-left-color: #818cf8; }
+      /* Custom select dropdown arrow */
+      select {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1.5em 1.5em;
+        padding-right: 2.5rem;
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+      }
+      .dark select {
+         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+      }
+      .listening-pulse { box-shadow: 0 0 0 0 rgba(79, 70, 229, 1); animation: pulse 2s infinite; }
+      @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useCallback, useRef } = React;
+
+      // --- Translations Object ---
+      const translations = {
+        en: {
+          langCode: "en-US", langName: "English",
+          title: "LegalEase AI", subtitle: "From confusing contracts to clear conversations. Get instant, AI-powered legal analysis.",
+          pasteLabel: "1. Paste Your Legal Text", orUpload: "or", uploadFile: "Upload File",
+          styleLabel: "2. Choose Analysis Style", analyzeButton: "Analyze", analyzingButton: "Analyzing...",
+          analysisHeader: "Your AI Analysis", analyzingText: "Analyzing your document...",
+          followUpLabel: "Have a follow-up question?", followUpPlaceholder: "e.g., What does 'indemnify' mean in this context?",
+          disclaimer: "Disclaimer:", disclaimerText: "This tool provides AI-generated analysis for informational purposes only and does not constitute legal advice.",
+          errorTitle: "An Error Occurred", pasteError: "Please paste text or upload a file to analyze.",
+          apiKeyError: "Please add your Gemini API key to the code.", apiResponseError: "Failed to get a response.",
+          fileUploadError: "Failed to read file.", listening: "Listening...", clearFile: "Clear File",
+          styleOptions: [
+            { id: 'plain-english', title: 'Plain English', description: 'Straightforward, simple terms.' },
+            { id: 'key-takeaways', title: 'Key Takeaways', description: 'Bulleted list of main points.' },
+            { id: 'risk-radar', title: 'Risk Radar', description: 'Find unfavorable clauses & red flags.' },
+            { id: 'action-items', title: 'Action Items', description: 'Extract deadlines & obligations.' },
+            { id: 'ap-law-rental', title: 'A.P. Law Check (Rental)', description: 'Analyzes rental agreements against Andhra Pradesh state law.' },
+          ]
+        },
+        te: {
+          langCode: "te-IN", langName: "తెలుగు",
+          title: "లీగల్ఈజ్ AI", subtitle: "గందరగోళపరిచే ఒప్పందాల నుండి స్పష్టమైన సంభాషణల వరకు. తక్షణ, AI-ఆధారిత న్యాయ విశ్లేషణను పొందండి.",
+          pasteLabel: "1. మీ న్యాయ పత్రాన్ని అతికించండి", orUpload: "లేదా", uploadFile: "ఫైల్‌ను అప్‌లోడ్ చేయండి",
+          styleLabel: "2. విశ్లేషణ శైలిని ఎంచుకోండి", analyzeButton: "విశ్లేషించండి", analyzingButton: "విశ్లేషిస్తోంది...",
+          analysisHeader: "మీ AI విశ్లేషణ", analyzingText: "మీ పత్రాన్ని విశ్లేషిస్తోంది...",
+          followUpLabel: "తదుపరి ప్రశ్న ఉందా?", followUpPlaceholder: "ఉదా., 'నష్టపరిహారం' అంటే ఏమిటి?",
+          disclaimer: "నిరాకరణ:", disclaimerText: "ఈ సాధనం సమాచార ప్రయోజనాల కోసం మాత్రమే AI-ఉత్పత్తి విశ్లేషణను అందిస్తుంది మరియు న్యాయ సలహా కాదు.",
+          errorTitle: "ఒక లోపం సంభవించింది", pasteError: "దయచేసి విశ్లేషించడానికి టెక్స్ట్ అతికించండి లేదా ఫైల్‌ను అప్‌లోడ్ చేయండి.",
+          apiKeyError: "దయచేసి మీ జెమిని API కీని కోడ్‌కు జోడించండి.", apiResponseError: "ప్రతిస్పందన పొందడంలో విఫలమైంది.",
+          fileUploadError: "ఫైల్‌ను చదవడం విఫలమైంది.", listening: "వినడం జరుగుతోంది...", clearFile: "ఫైల్‌ను తీసివేయండి",
+          styleOptions: [
+            { id: 'plain-english', title: 'సాధారణ తెలుగు', description: 'సూటిగా, సరళమైన పదాలు.' },
+            { id: 'key-takeaways', title: 'ముఖ్య అంశాలు', description: 'ప్రధాన పాయింట్ల జాబితా.' },
+            { id: 'risk-radar', title: 'రిస్క్ రాడార్', description: 'ప్రతికూల నిబంధనలు & రెడ్ ఫ్లాగ్‌లను కనుగొనండి.' },
+            { id: 'action-items', title: 'చేయవలసిన పనులు', description: 'గడువు తేదీలు & బాధ్యతలను సంగ్రహించండి.' },
+            { id: 'ap-law-rental', title: 'A.P. లా చెక్ (అద్దె)', description: 'ఆంధ్రప్రదేశ్ రాష్ట్ర చట్టం ప్రకారం అద్దె ఒప్పందాలను విశ్లేషిస్తుంది.' },
+          ]
+        },
+        hi: {
+          langCode: "hi-IN", langName: "हिन्दी",
+          title: "लीगलईज़ AI", subtitle: "भ्रामक अनुबंधों से स्पष्ट बातचीत तक। तुरंत, एआई-संचालित कानूनी विश्लेषण प्राप्त करें।",
+          pasteLabel: "1. अपना कानूनी टेक्स्ट पेस्ट करें", orUpload: "या", uploadFile: "फ़ाइल अपलोड करें",
+          styleLabel: "2. विश्लेषण शैली चुनें", analyzeButton: "विश्लेषण करें", analyzingButton: "विश्लेषण हो रहा है...",
+          analysisHeader: "आपका एआई विश्लेषण", analyzingText: "आपके दस्तावेज़ का विश्लेषण हो रहा है...",
+          followUpLabel: "क्या आपका कोई अनुवर्ती प्रश्न है?", followUpPlaceholder: "जैसे, 'क्षतिपूर्ति' का क्या अर्थ है?",
+          disclaimer: "अस्वीकरण:", disclaimerText: "यह उपकरण केवल सूचनात्मक उद्देश्यों के लिए एआई-जनित विश्लेषण प्रदान करता है और कानूनी सलाह नहीं है।",
+          errorTitle: "एक त्रुटि हुई", pasteError: "कृपया विश्लेषण के लिए टेक्स्ट पेस्ट करें या फ़ाइल अपलोड करें।",
+          apiKeyError: "कृपया अपने जेमिनी एपीआई कुंजी को कोड में जोड़ें।", apiResponseError: "ప్రतिक्रिया प्राप्त करने में विफल।",
+          fileUploadError: "छवि पढ़ने में विफल।", listening: "सुन रहा है...", clearFile: "फ़ाइल साफ़ करें",
+          styleOptions: [
+            { id: 'plain-english', title: 'सरल हिन्दी', description: 'सीधे, सरल शब्द।' },
+            { id: 'key-takeaways', title: 'मुख्य बिंदु', description: 'मुख्य बिंदुओं की सूची।' },
+            { id: 'risk-radar', title: 'जोखिम रडार', description: 'प्रतिकूल खंड और लाल झंडे खोजें।' },
+            { id: 'action-items', title: 'कार्यवाही आइटम', description: 'समय सीमा और दायित्वों को निकालें।' },
+            { id: 'ap-law-rental', title: 'A.P. कानून जांच (किराया)', description: 'आंध्र प्रदेश राज्य कानून के खिलाफ किराये के समझौतों का विश्लेषण करता है।' },
+          ]
+        }
+      };
+
+      // --- SVG Icons ---
+      const FileTextIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-indigo-600"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>);
+      const WandSparklesIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-2"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L11.8 9.2a1.21 1.21 0 0 0 0 1.72l5.8 5.8a1.21 1.21 0 0 0 1.72 0l6.84-6.84a1.21 1.21 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M17 17H3"/><path d="M21 17h-2"/></svg>);
+      const AlertTriangleIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-3 text-red-500"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>);
+      const SunIcon=({className})=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>);
+      const MoonIcon=({className})=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>);
+      const SendIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>);
+      const UploadIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>);
+      const MicIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>);
+      const SpeakerIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>);
+      const StopCircleIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></svg>);
+      const PdfIcon=()=>(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-red-500"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><path d="M2 12h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h2"/><path d="M2 18h2a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2h2"/></svg>);
+      
+      // --- Main App Component ---
+      function App() {
+        const [language, setLanguage] = useState('en');
+        const [legalText, setLegalText] = useState('');
+        const [uploadedFile, setUploadedFile] = useState(null);
+        const [simplificationStyle, setSimplificationStyle] = useState('plain-english');
+        const [analysisResult, setAnalysisResult] = useState('');
+        const [isLoading, setIsLoading] = useState(false);
+        const [error, setError] = useState(null);
+        const [isDarkMode, setIsDarkMode] = useState(false);
+        const [followUpQuestion, setFollowUpQuestion] = useState('');
+        const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+        const [conversationContext, setConversationContext] = useState(null);
+        const [isListening, setIsListening] = useState(false);
+        const [isSpeaking, setIsSpeaking] = useState(false);
+        const [voices, setVoices] = useState([]);
+        const fileInputRef = useRef(null);
+        const recognitionRef = useRef(null);
+
+        const t = translations[language];
+
+        useEffect(() => {
+          if (isDarkMode) document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
+        }, [isDarkMode]);
+
+        // Load available TTS voices from the browser
+        useEffect(() => {
+            const loadVoices = () => {
+                const availableVoices = window.speechSynthesis.getVoices();
+                if (availableVoices.length > 0) {
+                    setVoices(availableVoices);
+                }
+            };
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices(); // Initial call
+        }, []);
+        
+        // Effect to handle automatic reading of the analysis result
+        useEffect(() => {
+            if (analysisResult && !isLoading && !isFollowUpLoading) {
+                // Cancel any previous speech
+                window.speechSynthesis.cancel();
+                speakText(analysisResult);
+            }
+        }, [analysisResult, isLoading, isFollowUpLoading, voices]); // Depend on voices being loaded
+
+
+        const callGeminiAPI = useCallback(async (textPrompt, filePart, systemInstruction) => {
+          const apiKey = "AIzaSyD8YbeU8Wtls6J4kzEASht8voOFbJlkDRU"; // IMPORTANT: Replace with your actual key
+          if (apiKey === "YOUR_GEMINI_API_KEY") {
+              setError(t.apiKeyError); return null;
+          }
+          
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+          
+          let parts = [{ text: textPrompt }];
+          if(filePart){
+            parts.push(filePart);
+          }
+
+          try {
+            const response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                  contents: [{ parts }],
+                  systemInstruction: { parts: [{ text: systemInstruction }] }
+              })
+            });
+            if (!response.ok) {
+              const errorBody = await response.json();
+              throw new Error(`API Error: ${response.status} - ${errorBody.error?.message || 'Check browser console'}`);
+            }
+            const result = await response.json();
+            const candidate = result.candidates?.[0];
+            if (candidate && candidate.content?.parts?.[0]?.text) {
+              return candidate.content.parts[0].text;
+            } else {
+              throw new Error("Invalid response format from API.");
+            }
+          } catch (err) {
+            console.error("API call failed:", err);
+            setError(`${t.apiResponseError} ${err.message}`);
+            return null;
+          }
+        }, [t]);
+        
+        const handleFileUpload = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result.split(',')[1];
+                setUploadedFile({
+                    name: file.name,
+                    data: base64String,
+                    mimeType: file.type,
+                    preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null
+                });
+            };
+            reader.onerror = () => setError(t.fileUploadError);
+            reader.readAsDataURL(file);
+        };
+        
+        const handleInitialSubmit = async (e) => {
+            e.preventDefault();
+            if (!legalText.trim() && !uploadedFile) {
+                setError(t.pasteError); return;
+            }
+            setIsLoading(true); setError(null); setAnalysisResult(''); setConversationContext(null);
+
+            const stylePrompts = {
+                'plain-english': 'Explain the provided legal text in plain, simple English.',
+                'key-takeaways': 'Summarize the key takeaways from this legal text as a concise bulleted list.',
+                'risk-radar': 'Analyze this legal text for any clauses that could be risky, unfavorable, or unusual. List each "red flag" and explain the risk.',
+                'action-items': 'Extract all specific action items, obligations, and deadlines from this legal text into a checklist.',
+                'ap-law-rental': "You are an expert AI legal assistant specializing in Andhra Pradesh, India law. Analyze the following rental agreement based on the Andhra Pradesh Residential and Non-Residential Tenancy Act, 2017. Identify any clauses that are non-standard, potentially unfair to the tenant, or missing key information required by state law (like details of rent deposit, notice period, etc.)."
+            };
+
+            const languageInstruction = ` All your final output must be in ${t.langName}.`;
+            let userQuery = stylePrompts[simplificationStyle];
+            
+            if (uploadedFile) {
+                userQuery += `\n\nThe legal text is contained within the attached file (${uploadedFile.name}). Please analyze the text you find in the file.`;
+            } else {
+                userQuery += `\n\nHere is the legal text:\n"""${legalText}"""`;
+            }
+
+            const systemPrompt = "You are LegalEase AI. Your task is to analyze legal documents. Do not provide legal advice. Begin your explanation directly. Use markdown for formatting." + languageInstruction;
+            
+            const filePart = uploadedFile ? { inline_data: { mime_type: uploadedFile.mimeType, data: uploadedFile.data } } : null;
+            const finalResult = await callGeminiAPI(userQuery, filePart, systemPrompt);
+            
+            if (finalResult) {
+                setAnalysisResult(finalResult);
+                setConversationContext({ originalText: legalText, originalFile: uploadedFile, initialAnalysis: finalResult });
+            }
+            setIsLoading(false);
+        };
+        
+        const handleFollowUpSubmit = async (e) => {
+            e.preventDefault();
+            if (!followUpQuestion.trim() || !conversationContext) return;
+        
+            setIsFollowUpLoading(true);
+            setError(null);
+        
+            const languageInstruction = ` All your final output must be in ${t.langName}.`;
+            const systemPrompt = "You are a helpful legal assistant. The user has provided a document and you have given an initial analysis. Now, answer the user's follow-up question based on the full context of the original document. Be concise and directly answer the question." + languageInstruction;
+            
+            let userQuery = `Original Document Text:\n"""${conversationContext.originalText}"""\n\nMy Initial Analysis:\n"""${conversationContext.initialAnalysis}"""\n\nBased on all the above information, please answer my specific question: "${followUpQuestion}"`;
+            
+            const finalResult = await callGeminiAPI(userQuery, null, systemPrompt);
+        
+            if (finalResult) {
+                const newContent = `\n\n---\n\n**${language === 'en' ? 'Your Question' : t.followUpLabel.replace('?','')}**: *${followUpQuestion}*\n\n**${language === 'en' ? 'Answer' : t.langName === 'తెలుగు' ? 'సమాధానం' : 'उत्तर'}:** ${finalResult}`;
+                setAnalysisResult(prev => prev + newContent);
+                setFollowUpQuestion('');
+            }
+            setIsFollowUpLoading(false);
+        };
+
+        const handleToggleListening = () => {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SpeechRecognition) {
+            alert("Speech recognition is not supported in this browser.");
+            return;
+          }
+
+          if (isListening) {
+            recognitionRef.current?.stop();
+            setIsListening(false);
+            return;
+          }
+
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.lang = t.langCode;
+          recognitionRef.current.interimResults = false;
+          recognitionRef.current.onstart = () => setIsListening(true);
+          recognitionRef.current.onend = () => setIsListening(false);
+          recognitionRef.current.onerror = (event) => console.error('Speech recognition error:', event.error);
+          recognitionRef.current.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setLegalText(prev => prev ? `${prev}\n${transcript}` : transcript);
+          };
+          recognitionRef.current.start();
+        };
+        
+        const speakText = (text) => {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = t.langCode;
+            
+            // This is the key fix: explicitly find and set the voice.
+            const bestVoice = voices.find(voice => voice.lang === t.langCode);
+            if (bestVoice) {
+                utterance.voice = bestVoice;
+            } else {
+                console.warn(`No voice found for language: ${t.langCode}. Using browser default.`);
+            }
+
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = (e) => {
+                console.error("Speech synthesis error:", e);
+                setIsSpeaking(false);
+            };
+            window.speechSynthesis.speak(utterance);
+        };
+
+        const handleReadAloud = () => {
+            if (!analysisResult) return;
+
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+                return;
+            }
+            speakText(analysisResult);
+        };
+        
+        return (
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 antialiased">
+            <div className="container mx-auto px-4 py-8 md:py-12">
+              <header className="text-center mb-10 md:mb-16 relative">
+                  <div className="absolute top-0 right-0 flex items-center space-x-4">
+                    <select onChange={(e) => setLanguage(e.target.value)} value={language} className="bg-slate-200 dark:bg-slate-700 rounded-full text-sm font-medium border-0 focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                      {Object.keys(translations).map(langCode => (<option key={langCode} value={langCode}>{translations[langCode].langName}</option>))}
+                    </select>
+                    <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Toggle dark mode">
+                      {isDarkMode ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
+                    </button>
+                  </div>
+                  <div className="inline-flex items-center justify-center bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm mb-4 border border-slate-200 dark:border-slate-700">
+                    <FileTextIcon />
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white tracking-tight">{t.title}</h1>
+                  <p className="mt-3 text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">{t.subtitle}</p>
+              </header>
+
+              <main className="max-w-4xl mx-auto">
+                <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+                  <form onSubmit={handleInitialSubmit}>
+                    <div className="mb-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <label htmlFor="legal-text" className="text-lg font-semibold text-slate-700 dark:text-slate-300">{t.pasteLabel}</label>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm text-slate-400">{t.orUpload}</span>
+                            <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"><UploadIcon /><span>{t.uploadFile}</span></button>
+                            <input type="file" accept="image/*,application/pdf" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <textarea id="legal-text" value={legalText} onChange={(e) => setLegalText(e.target.value)} className="w-full h-48 p-4 border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-shadow duration-200 resize-y" disabled={isLoading}></textarea>
+                        <button type="button" onClick={handleToggleListening} className={`absolute bottom-3 right-3 p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white listening-pulse' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300'}`} title={isListening ? t.listening : "Voice Input"}>
+                            <MicIcon/>
+                        </button>
+                      </div>
+                      {uploadedFile && (
+                          <div className="mt-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-between">
+                              <div className="flex items-center">
+                                  {uploadedFile.preview ?
+                                    <img src={uploadedFile.preview} alt="Uploaded document" className="h-12 w-12 object-cover rounded-md mr-3" />
+                                    : <div className="h-12 w-12 flex items-center justify-center rounded-md mr-3 bg-slate-200 dark:bg-slate-600"><PdfIcon/></div>
+                                  }
+                                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{uploadedFile.name}</span>
+                              </div>
+                              <button type="button" onClick={() => setUploadedFile(null)} className="text-sm font-semibold text-red-500 hover:text-red-700">&times; {t.clearFile}</button>
+                          </div>
+                      )}
+                    </div>
+
+                    <div className="mb-8">
+                      <label className="block text-lg font-semibold mb-3 text-slate-700 dark:text-slate-300">{t.styleLabel}</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {t.styleOptions.map((option) => (
+                          <div key={option.id}>
+                            <input type="radio" id={option.id} name="simplificationStyle" value={option.id} checked={simplificationStyle === option.id} onChange={(e) => setSimplificationStyle(e.target.value)} className="sr-only peer" disabled={isLoading} />
+                            <label htmlFor={option.id} className="block h-full p-4 border border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer peer-checked:border-indigo-600 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/50 transition-all">
+                              <p className="font-semibold text-slate-800 dark:text-slate-200">{option.title}</p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">{option.description}</p>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                      <button type="submit" disabled={isLoading} className="inline-flex items-center justify-center w-full sm:w-auto px-12 py-4 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all transform hover:scale-105 disabled:bg-slate-400 disabled:cursor-not-allowed disabled:scale-100 shadow-md">
+                        {isLoading ? <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>{t.analyzingButton}</> : <><WandSparklesIcon />{t.analyzeButton}</>}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {(error || analysisResult || isLoading) && (
+                  <div className="mt-10">
+                      <div className="flex justify-center items-center mb-4 relative">
+                          <h2 className="text-2xl font-bold text-center text-slate-800 dark:text-slate-200">{t.analysisHeader}</h2>
+                          {analysisResult && !isLoading && (
+                              <button onClick={handleReadAloud} className="absolute right-0 p-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700" title={isSpeaking ? "Stop Reading" : "Read Aloud"}>
+                                  {isSpeaking ? <StopCircleIcon /> : <SpeakerIcon />}
+                              </button>
+                          )}
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 min-h-[200px]">
+                          {isLoading && <div className="text-center text-slate-500 dark:text-slate-400"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3"></div><p>{t.analyzingText}</p></div>}
+                          {error && <div className="flex items-start text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-4 rounded-lg"><AlertTriangleIcon/><div><h3 className="font-semibold">{t.errorTitle}</h3><p className="text-sm">{error}</p></div></div>}
+                          {analysisResult && <div className="prose max-w-none w-full whitespace-pre-wrap dark:prose-invert">{analysisResult}</div>}
+                      </div>
+                  </div>
+                )}
+                
+                {conversationContext && !isLoading && (
+                    <div className="mt-8">
+                        <form onSubmit={handleFollowUpSubmit} className="relative">
+                           <label htmlFor="follow-up" className="block text-md font-semibold mb-2 text-slate-700 dark:text-slate-300 text-center">{t.followUpLabel}</label>
+                            <input
+                                id="follow-up"
+                                type="text"
+                                value={followUpQuestion}
+                                onChange={(e) => setFollowUpQuestion(e.target.value)}
+                                placeholder={t.followUpPlaceholder}
+                                className="w-full p-4 pr-12 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-shadow duration-200"
+                                disabled={isFollowUpLoading}
+                            />
+                            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50" disabled={isFollowUpLoading || !followUpQuestion.trim()}>
+                                {isFollowUpLoading ? <div className="w-5 h-5 border-2 border-slate-400 border-t-indigo-500 rounded-full animate-spin"></div> : <SendIcon />}
+                            </button>
+                        </form>
+                    </div>
+                )}
+
+                <footer className="text-center mt-12">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 p-4 rounded-lg">
+                        <span className="font-semibold">{t.disclaimer}</span> {t.disclaimerText}
+                    </p>
+                </footer>
+              </main>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+</body>
+</html>
+
